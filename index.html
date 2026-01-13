@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Tree Echo - Skill Diffusion</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --border-color: #2a2a35;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+            25% { transform: translateY(-100px) translateX(50px); opacity: 0.6; }
+            50% { transform: translateY(-50px) translateX(-30px); opacity: 0.3; }
+            75% { transform: translateY(-150px) translateX(20px); opacity: 0.5; }
+        }
+
+        /* Header */
+        header {
+            padding: 2rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(180deg, var(--bg-secondary) 0%, transparent 100%);
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: pulse 3s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Main content */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Architecture section */
+        .architecture {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .membrane-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .membrane-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .membrane-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px var(--accent-glow);
+            border-color: var(--accent-primary);
+        }
+
+        .membrane-card:hover::before {
+            opacity: 1;
+        }
+
+        .membrane-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .membrane-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .membrane-desc {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .membrane-features {
+            margin-top: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .feature-tag {
+            background: var(--bg-tertiary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--accent-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Sys6 Visualization */
+        .sys6-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .sys6-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .sys6-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .sys6-formula {
+            font-family: 'Fira Code', monospace;
+            background: var(--bg-tertiary);
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            display: inline-block;
+            color: var(--accent-secondary);
+            font-size: 1.1rem;
+        }
+
+        .cycle-visualization {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .cycle-step {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1.2rem;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .cycle-step.active {
+            transform: scale(1.2);
+            box-shadow: 0 0 30px var(--accent-glow);
+        }
+
+        .cycle-step.perceive { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .cycle-step.act { background: linear-gradient(135deg, #10b981, #059669); }
+        .cycle-step.reflect { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+
+        .cycle-arrow {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        /* Diffusion Demo */
+        .diffusion-demo {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .demo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .demo-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .demo-controls {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .trajectory-canvas {
+            width: 100%;
+            height: 300px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .trajectory-path {
+            position: absolute;
+            stroke: var(--accent-primary);
+            stroke-width: 2;
+            fill: none;
+            filter: drop-shadow(0 0 10px var(--accent-glow));
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Terminal */
+        .terminal {
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 3rem;
+        }
+
+        .terminal-header {
+            background: var(--bg-tertiary);
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27c93f; }
+
+        .terminal-title {
+            margin-left: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .terminal-body {
+            padding: 1rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .terminal-line {
+            margin-bottom: 0.5rem;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .terminal-prompt {
+            color: var(--success);
+        }
+
+        .terminal-command {
+            color: var(--text-primary);
+        }
+
+        .terminal-output {
+            color: var(--text-secondary);
+        }
+
+        .terminal-success {
+            color: var(--success);
+        }
+
+        .terminal-info {
+            color: var(--accent-primary);
+        }
+
+        /* Links section */
+        .links-section {
+            text-align: center;
+            padding: 2rem;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .links-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .links-grid {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .link-btn:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px var(--accent-glow);
+        }
+
+        .link-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            margin-top: 3rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .architecture { grid-template-columns: 1fr; }
+            .cycle-visualization { flex-direction: column; }
+            .demo-header { flex-direction: column; gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="particles" id="particles"></div>
+
+    <header>
+        <div class="logo">🌳</div>
+        <h1>Deep Tree Echo</h1>
+        <p class="subtitle">Skill-Diffusion: Autonomous trajectory generation and skill learning through diffusion-based cognitive architecture</p>
+    </header>
+
+    <main>
+        <!-- Architecture Cards -->
+        <section class="architecture">
+            <div class="membrane-card">
+                <div class="membrane-icon">🧠</div>
+                <h3 class="membrane-title">Cognitive Membrane</h3>
+                <p class="membrane-desc">Core processing layer with hypergraph memory, echo propagation, and cognitive grammar kernel for neural-symbolic integration.</p>
+                <div class="membrane-features">
+                    <span class="feature-tag">Memory</span>
+                    <span class="feature-tag">Reasoning</span>
+                    <span class="feature-tag">Grammar</span>
+                </div>
+            </div>
+
+            <div class="membrane-card">
+                <div class="membrane-icon">🎯</div>
+                <h3 class="membrane-title">Trajectory Diffusion</h3>
+                <p class="membrane-desc">DDPM-based trajectory generation with intent-conditioned sampling and 1000-step diffusion process for skill proposals.</p>
+                <div class="membrane-features">
+                    <span class="feature-tag">DDPM</span>
+                    <span class="feature-tag">Latent Space</span>
+                    <span class="feature-tag">Sampling</span>
+                </div>
+            </div>
+
+            <div class="membrane-card">
+                <div class="membrane-icon">⚔️</div>
+                <h3 class="membrane-title">Opponent Processing</h3>
+                <p class="membrane-desc">4-phase creative/normative cycle: Propose → Decode → Normalize → Commit for autonomous skill refinement.</p>
+                <div class="membrane-features">
+                    <span class="feature-tag">Free Energy</span>
+                    <span class="feature-tag">World Model</span>
+                    <span class="feature-tag">Skills</span>
+                </div>
+            </div>
+
+            <div class="membrane-card">
+                <div class="membrane-icon">✨</div>
+                <h3 class="membrane-title">Gesture Glyph Codec</h3>
+                <p class="membrane-desc">Visual encoding/decoding of execution trajectories with 4 glyph formats and probabilistic reconstruction.</p>
+                <div class="membrane-features">
+                    <span class="feature-tag">Stroke</span>
+                    <span class="feature-tag">VectorField</span>
+                    <span class="feature-tag">ContactMap</span>
+                </div>
+            </div>
+
+            <div class="membrane-card">
+                <div class="membrane-icon">🔄</div>
+                <h3 class="membrane-title">Double Membrane</h3>
+                <p class="membrane-desc">Outer (objective) and inner (subjective) membranes with transjective buffer for evidence/intent packet exchange.</p>
+                <div class="membrane-features">
+                    <span class="feature-tag">Objective</span>
+                    <span class="feature-tag">Subjective</span>
+                    <span class="feature-tag">Buffer</span>
+                </div>
+            </div>
+
+            <div class="membrane-card">
+                <div class="membrane-icon">🎭</div>
+                <h3 class="membrane-title">Sys6 Operadic</h3>
+                <p class="membrane-desc">Mathematical foundation: σ ∘ (φ ∘ μ ∘ (Δ₂ ⊗ Δ₃ ⊗ id_P)) with 30-step cycle and 42 sync events.</p>
+                <div class="membrane-features">
+                    <span class="feature-tag">Operads</span>
+                    <span class="feature-tag">SIMD</span>
+                    <span class="feature-tag">Pipeline</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sys6 Visualization -->
+        <section class="sys6-section">
+            <div class="sys6-header">
+                <h2 class="sys6-title">Sys6 Cognitive Cycle</h2>
+                <div class="sys6-formula">Sys6 := σ ∘ (φ ∘ μ ∘ (Δ₂ ⊗ Δ₃ ⊗ id_P))</div>
+            </div>
+            <div class="cycle-visualization" id="cycleViz">
+                <div class="cycle-step perceive" data-phase="perceive">👁️</div>
+                <span class="cycle-arrow">→</span>
+                <div class="cycle-step act" data-phase="act">⚡</div>
+                <span class="cycle-arrow">→</span>
+                <div class="cycle-step reflect" data-phase="reflect">💭</div>
+                <span class="cycle-arrow">→</span>
+                <div class="cycle-step perceive" data-phase="perceive">👁️</div>
+                <span class="cycle-arrow">→</span>
+                <div class="cycle-step act" data-phase="act">⚡</div>
+                <span class="cycle-arrow">→</span>
+                <div class="cycle-step reflect" data-phase="reflect">💭</div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="cycleCount">0</div>
+                    <div class="stat-label">Cycles Completed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="syncEvents">0</div>
+                    <div class="stat-label">Sync Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="freeEnergy">1.00</div>
+                    <div class="stat-label">Free Energy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="skillCount">0</div>
+                    <div class="stat-label">Skills Learned</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Diffusion Demo -->
+        <section class="diffusion-demo">
+            <div class="demo-header">
+                <h2 class="demo-title">🎯 Trajectory Diffusion Demo</h2>
+                <div class="demo-controls">
+                    <button class="btn btn-primary" id="generateBtn">Generate Trajectory</button>
+                    <button class="btn btn-secondary" id="resetBtn">Reset</button>
+                </div>
+            </div>
+            <div class="trajectory-canvas" id="trajectoryCanvas">
+                <svg width="100%" height="100%" id="trajectorySvg"></svg>
+            </div>
+        </section>
+
+        <!-- Terminal -->
+        <section class="terminal">
+            <div class="terminal-header">
+                <div class="terminal-dot red"></div>
+                <div class="terminal-dot yellow"></div>
+                <div class="terminal-dot green"></div>
+                <span class="terminal-title">deep-tree-echo-core</span>
+            </div>
+            <div class="terminal-body" id="terminalBody">
+                <div class="terminal-line" style="animation-delay: 0s">
+                    <span class="terminal-prompt">$</span>
+                    <span class="terminal-command"> pnpm build:all</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 0.5s">
+                    <span class="terminal-output">Building @deltecho/shared...</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 1s">
+                    <span class="terminal-success">✓ @deltecho/shared built successfully</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 1.5s">
+                    <span class="terminal-output">Building deep-tree-echo-core...</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 2s">
+                    <span class="terminal-success">✓ deep-tree-echo-core built successfully</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 2.5s">
+                    <span class="terminal-output">Running tests...</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 3s">
+                    <span class="terminal-success">✓ 218/218 tests passed (100%)</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 3.5s">
+                    <span class="terminal-info">→ Initializing Sys6 cognitive cycle...</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 4s">
+                    <span class="terminal-info">→ Loading trajectory diffusion model...</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 4.5s">
+                    <span class="terminal-info">→ Activating opponent processing...</span>
+                </div>
+                <div class="terminal-line" style="animation-delay: 5s">
+                    <span class="terminal-success">✓ Deep Tree Echo ready</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Links -->
+        <section class="links-section">
+            <h2 class="links-title">Explore the Repository</h2>
+            <div class="links-grid">
+                <a href="https://github.com/o9nn/deltecho-skill-diffusion" class="link-btn" target="_blank">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub Repository
+                </a>
+                <a href="https://github.com/o9nn/deltecho" class="link-btn" target="_blank">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    Original Deltecho
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Deep Tree Echo - Skill Diffusion | Built with 🌳 cognitive architecture</p>
+        <p style="margin-top: 0.5rem; font-size: 0.85rem;">© 2026 o9nn | Apache License 2.0</p>
+    </footer>
+
+    <script>
+        // Create particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 30; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 15 + 's';
+            particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Sys6 cycle animation
+        let cycleCount = 0;
+        let syncEvents = 0;
+        let freeEnergy = 1.0;
+        let skillCount = 0;
+        let currentStep = 0;
+
+        const cycleSteps = document.querySelectorAll('.cycle-step');
+
+        function animateCycle() {
+            cycleSteps.forEach(step => step.classList.remove('active'));
+            cycleSteps[currentStep].classList.add('active');
+            
+            currentStep = (currentStep + 1) % cycleSteps.length;
+            
+            if (currentStep === 0) {
+                cycleCount++;
+                document.getElementById('cycleCount').textContent = cycleCount;
+            }
+            
+            syncEvents += 7;
+            document.getElementById('syncEvents').textContent = syncEvents;
+            
+            freeEnergy = Math.max(0.1, freeEnergy - 0.01 + Math.random() * 0.02);
+            document.getElementById('freeEnergy').textContent = freeEnergy.toFixed(2);
+            
+            if (cycleCount > 0 && cycleCount % 5 === 0 && currentStep === 0) {
+                skillCount++;
+                document.getElementById('skillCount').textContent = skillCount;
+            }
+        }
+
+        setInterval(animateCycle, 500);
+
+        // Trajectory generation
+        const svg = document.getElementById('trajectorySvg');
+        const generateBtn = document.getElementById('generateBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        function generateTrajectory() {
+            const width = svg.clientWidth;
+            const height = svg.clientHeight;
+            
+            // Generate diffusion-style trajectory
+            let path = `M ${width * 0.1} ${height * 0.5}`;
+            let x = width * 0.1;
+            let y = height * 0.5;
+            
+            const steps = 50;
+            for (let i = 0; i < steps; i++) {
+                const progress = i / steps;
+                const targetX = width * 0.9;
+                const targetY = height * 0.5;
+                
+                // Add noise that decreases over time (like reverse diffusion)
+                const noise = (1 - progress) * 0.3;
+                x += (targetX - x) / (steps - i) + (Math.random() - 0.5) * height * noise;
+                y += (targetY - y) / (steps - i) + (Math.random() - 0.5) * height * noise;
+                
+                // Clamp to bounds
+                y = Math.max(20, Math.min(height - 20, y));
+                
+                path += ` L ${x} ${y}`;
+            }
+            
+            const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            pathElement.setAttribute('d', path);
+            pathElement.setAttribute('class', 'trajectory-path');
+            pathElement.setAttribute('stroke', `hsl(${Math.random() * 60 + 220}, 70%, 60%)`);
+            pathElement.style.strokeDasharray = '1000';
+            pathElement.style.strokeDashoffset = '1000';
+            pathElement.style.animation = 'drawPath 2s ease forwards';
+            
+            svg.appendChild(pathElement);
+        }
+
+        // Add CSS animation for path drawing
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes drawPath {
+                to { stroke-dashoffset: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        generateBtn.addEventListener('click', generateTrajectory);
+        resetBtn.addEventListener('click', () => {
+            svg.innerHTML = '';
+        });
+
+        // Generate initial trajectory
+        setTimeout(generateTrajectory, 1000);
+    </script>
+</body>
+</html>
