@@ -74,3 +74,19 @@ node_modules/
 
 # Native libraries (large binaries)
 native-libs/**/*.so
+
+# Desktop app build outputs
+delta-echo-desk/packages/target-browser/dist/
+delta-echo-desk/packages/target-electron/bundle_out/
+delta-echo-desk/packages/target-electron/html-dist/
+delta-echo-desk/packages/target-tauri/html-dist/
+delta-echo-desk/packages/frontend/html-dist/
+deltecho2/packages/target-browser/dist/
+deltecho2/packages/target-electron/bundle_out/
+deltecho2/packages/target-electron/html-dist/
+deltecho2/packages/target-tauri/html-dist/
+deltecho2/packages/frontend/html-dist/
+
+# Generated locale files (keep .xml source files)
+delta-echo-desk/_locales/*.json
+deltecho2/_locales/*.json
