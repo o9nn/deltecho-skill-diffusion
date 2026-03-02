@@ -5,19 +5,19 @@
  * Implements inverse mapping: γ → τ
  */
 
-import type {
-  Glyph,
-  Trajectory,
-  Action,
-  State,
-  Observation,
+import {
   GlyphFormat,
-  Stroke,
-  TimeChannel,
-  VectorField,
-  ContactMap,
-  Point2D,
-} from '../glyph/types';
+  type Glyph,
+  type Trajectory,
+  type Action,
+  type State,
+  type Observation,
+  type Stroke,
+  type TimeChannel,
+  type VectorField,
+  type ContactMap,
+  type Point2D,
+} from '../glyph/types.js';
 
 export interface GlyphDecoderConfig {
   /** Temporal resolution for reconstruction */
