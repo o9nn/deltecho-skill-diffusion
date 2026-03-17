@@ -14,106 +14,107 @@ The `deltecho` framework is a monorepo with a layered architecture:
 | Layer | Package | Purpose |
 | :--- | :--- | :--- |
 | **0. Core** | `@deltecho/core` | Low-level communication with the DeltaChat network via `deltachat-rpc-client`. |
-| **1. Frontend** | `@deltecho/frontend` | The main React-based user interface, including the 3-panel workspace. |
+| **1. Frontend** | `@deltecho/frontend` | The main React-based user interface. |
 | **2. Avatar** | `@deltecho/avatar` | Live2D Cubism avatar integration, expression mapping, and rendering. |
-| **3. Voice** | `@deltecho/voice` | Voice pipeline for speech-to-text and text-to-speech. |
-| **4. Cognitive** | `@deltecho/cognitive` | Unified cognitive interface for reasoning, memory, and persona. |
-| **5. Orchestrator** | `deep-tree-echo-orchestrator` | High-level event handling, command routing, and agentic loop. |
-| **6. Target Browser** | `@deltachat-desktop/target-browser` | Cloudflare Workers deployment target with KV/R2 persistence. |
+| **3. Cognitive** | `@deltecho/cognitive` | Unified cognitive interface for reasoning, memory, and persona. |
+| **4. Orchestrator** | `deep-tree-echo-orchestrator` | High-level event handling, command routing, and agentic loop. |
 
-## 3-Panel Workspace Layout
+## Deployment Architecture
 
-The main interface is a 3-panel workspace designed for continuous cognitive engagement:
+The production deployment uses **Cloudflare Containers** with a Worker proxy:
 
-1. **Left Panel (WorkspaceNav)**: Profile management, Chatting/Working/Learning tabs, and Manus integration status.
-2. **Center Panel (Messages)**: Standard DeltaChat message view and composer.
-3. **Right Panel (AvatarCognitivePanel)**: The "always-on" presence of Deep Tree Echo.
-   - **Top**: Cognitive stream showing Echobeat phase, inner monologue, DreamGen narratives, and session stats.
-   - **Middle**: Endocrine state visualization showing real-time hormone levels (COR, DOP, SER, OXY, etc.) and derived cognitive mode.
-   - **Bottom**: Live2D avatar rendering with dynamic expressions driven by the endocrine state.
+| Component | Role |
+| :--- | :--- |
+| **Worker** (`worker.ts`) | Auth, LLM proxy, cognitive KV API, WebSocket upgrade, routes to container |
+| **Container** (Docker) | Full browser target server with deltachat-rpc-server binary |
+| **KV** (`DTE_KV`) | Cognitive state persistence (endocrine, memory, config) |
+| **R2** (`DTE_R2`) | Long-term echo memory archive |
 
-## Cloudflare Deployment & Persistence
+**Production URL**: `https://deltecho-chat-preview.dan-cdc.workers.dev/`
 
-The application is deployed to Cloudflare Containers (`target-browser` package). Because container disk is ephemeral, the framework implements a robust persistence layer:
-
-- **Account Persistence**: DeltaChat accounts are backed up to Cloudflare R2 every 5 minutes and restored on container boot.
-- **Cognitive Persistence**: Thoughts, narratives, and endocrine states are persisted to Cloudflare KV.
-- **DreamGen Proxy**: The worker edge intercepts `/backend-api/dreamgen/completions` and `/backend-api/dreamgen/narrative` to securely inject the `DGENKEY` secret before forwarding to the DreamGen API.
+**Deploy pipeline**: Push to `main` triggers `.github/workflows/deploy-cloudflare.yml` which builds Docker image, pushes to Cloudflare registry, and deploys via `wrangler deploy`.
 
 ## Workflow: Building a Cognitive Bot
 
-Follow these steps to build and run a bot using the `deltecho` framework.
-
 ### Step 1: Set Up the Development Environment
-
-Clone the `deltecho` repository and install dependencies:
 
 ```bash
 gh repo clone ReZorg/deltecho
 cd deltecho
 pnpm install --frozen-lockfile
+pnpm build:ordered  # Build workspace packages in dependency order
 ```
 
 ### Step 2: Run the Development Server
 
-Start the frontend development server:
-
 ```bash
-pnpm --filter @deltecho/frontend dev
+pnpm build:browser  # Build the browser target
+pnpm start:browser  # Start the server
 ```
-
-This will open the DeltaChat web interface in your browser.
 
 ### Step 3: Enable Deep Tree Echo Autonomy
 
-The `AutonomousThinkingSubstrate` runs a continuous cognitive loop (Echobeats 9-step cycle) at 2Hz. It generates internal thoughts, updates the endocrine state, and triggers DreamGen narratives.
+The `DTESimulation` class in `DeepTreeEchoHub.tsx` runs an autonomous cognitive loop by default. The LLM integration uses a proxy through the worker:
 
-The `AvatarCognitivePanel` subscribes to the `subscribeEndocrine` event bus to receive live hormone updates directly from the substrate, falling back to KV polling only on initial load.
+- **LLM Chat**: `POST /backend-api/llm/chat` (proxied to OpenAI-compatible API)
+- **DreamGen Completions**: `POST /backend-api/dreamgen/completions`
+- **DreamGen Narrative**: `POST /backend-api/dreamgen/narrative`
+- **Cognitive State**: `GET/POST /backend-api/cognitive/*` (KV-backed)
 
 ### Step 4: Integrate the Live2D Avatar
 
-The `deltecho` framework includes a complete Live2D avatar integration with a dynamic expression pipeline:
+Model files are in `packages/frontend/static/models/miara/`. The avatar pipeline:
 
-1.  **Provide a Live2D model**: Place your Live2D model files in `packages/frontend/public/avatars/`.
-2.  **Configure the avatar**: In `packages/frontend/src/components/DeepTreeEchoBot/DeepTreeEchoAvatarDisplay.tsx`, update the `modelPath` to point to your model's `.model3.json` file.
-3.  **DTE Expression Pipeline**: The avatar is driven by the `DTEExpressionPipeline` which maps the cognitive endocrine state (hormones) to FACS Action Units, and then to Cubism parameters. This runs at 10Hz to provide smooth, continuous emotional expression.
-
-For more details on the Live2D integration, read `/home/ubuntu/deltecho/LIVE2D_AVATAR_INTEGRATION.md` and the `live2d-avatar` skill.
+1. `Live2DAvatar` React component creates a `Live2DAvatarManager`
+2. Manager creates `PixiLive2DRenderer` which initializes PixiJS + pixi-live2d-display
+3. Cubism Core WASM loads from `live2dcubismcore.min.js` (in static/)
+4. Model files loaded via XHR from `/models/miara/miara_pro_t03.model3.json`
+5. Expression/motion driven by `EndocrineExpressionBridge` and cognitive state
 
 ## Performance & Known Issues
 
-### Live2D Cubism Core WASM Race Condition
+### Live2D Cubism4 Console.log Recursion Crash (CRITICAL - Fixed)
 
-**Symptom**: The Live2D avatar fails to load with a "Live2D Failed" error.
+**Symptom**: Live2D avatar fails to load in the bundled app but works in the standalone test page (`avatar-test-v2.html`). Falls back to sprite avatar after 60s timeout.
 
-**Root Cause**: The `pixi-live2d-display` library checks for `window.Live2DCubismCore` at the module level. When esbuild bundles the application, this check runs at bundle parse time, before the asynchronously loaded Cubism Core WASM has finished initializing. This race condition causes a fatal error.
+**Root Cause**: There are TWO logging paths in the Cubism4 stack:
+1. **Core SDK**: `Live2DCubismCore.Logging.csmSetLogFunction(fn)`
+2. **Framework**: `CubismFramework.startUp({ logFunction: console.log })`
 
-**Fix**: The build system now includes an esbuild plugin (`cubismPatchPlugin`) that patches the `pixi-live2d-display` source code, converting the fatal `throw new Error(...)` into a non-blocking `console.warn(...)`. Additionally, the `PixiLive2DRenderer` now includes a `waitForCubismCore()` method that polls for the WASM runtime to be ready before attempting to load the model, and the avatar loading timeout has been increased to 30 seconds to accommodate large texture files.
+The `startUpCubism4()` function passes `console.log` directly as the framework's `logFunction`. When `console.log` has been wrapped by DeltaChat's error boundary, browser extensions, or debugging tools, this causes infinite recursion and a "Maximum call stack size exceeded" crash. The `cubism4Ready()` function retries 20 times but all fail.
 
-### Duplicate Thought Bubbles
+**Fix (commit dc7775d)**: Two-layer defense:
+1. **Build-time** (`cubismPatchPlugin` in `build-frontend-ts.mjs`): Replaces `logFunction: console.log` with `logFunction: function() {}` in the pixi-live2d-display source before bundling
+2. **Runtime** (`patchCubismStartup()` in `pixi-live2d-renderer.ts`): Intercepts `csmSetLogFunction` to always use `safeLog`, and directly sets the safe logger on the Core SDK
 
-**Symptom**: The cognitive thought stream appears twice in the UI.
+### Live2D Cubism Core WASM Race Condition (Fixed)
 
-**Fix**: Ensure `DTEThoughtBubble` is only rendered once per layout mode. In the 3-panel layout, `AvatarCognitivePanel` owns the inline thought bubble. `DeepTreeEchoAvatarDisplay` should only render the overlay bubble when `finalPosition !== "panel" && finalPosition !== "inline"`.
+**Symptom**: "Live2D Failed" error on first load.
 
-### DreamGen API Keys in Containers
+**Root Cause**: `pixi-live2d-display` checks `window.Live2DCubismCore` at module level. When esbuild bundles the app, this check runs before WASM initialization completes.
 
-**Symptom**: DreamGen narratives fail to generate in Cloudflare Containers.
+**Fix**: The `cubismPatchPlugin` converts the fatal `throw new Error(...)` into `console.warn(...)`. The `PixiLive2DRenderer.waitForCubismCore()` polls for WASM readiness before loading.
 
-**Fix**: Container environments do not automatically inherit Worker secrets. The worker edge (`worker.ts`) must intercept the `/backend-api/dreamgen/completions` endpoint, inject the `DGENKEY` from its environment, and proxy the request directly to DreamGen, bypassing the container. Ensure the adapter is initialized *before* the substrate listener is attached to avoid `isReady()` errors.
+### CSP Configuration
 
-### Dropped Bot Responses (isProcessing Mutex)
+The `main.html` CSP must include:
+- `script-src 'self' 'wasm-unsafe-eval'` — for Cubism Core WASM
+- `connect-src 'self'` — for model file XHR loading and LLM proxy
+- `img-src 'self' data: blob:` — for Live2D textures
 
-**Symptom**: The bot responds to the first message but ignores subsequent messages if sent too quickly.
+### `sentbox_watch` and Deprecated Config Keys
 
-**Fix**: The `DeepTreeEchoBot` chat component uses an `isProcessing` mutex. If a message arrives while the LLM is still generating the previous response, it gets dropped. Implement a message queue (`messageQueue.current`) to buffer incoming messages and process them sequentially when the mutex is released.
+**Fix**: Ensure `packages/frontend/src/stores/settings.ts` does not contain deprecated keys: `sentbox_watch`, `e2ee_enabled`, `webrtc_instance`, `webxdc_realtime_enabled`. Replace `addr` with `configured_addr`.
 
-## Bundled Scripts & References
+## Key Files
 
-This skill has been updated to reflect the current state of the `deltecho` repository. The old Python scripts are deprecated. Use the following resources for guidance:
-
-- **`/home/ubuntu/deltecho/`**: The full source code of the `deltecho` project.
-- **`/home/ubuntu/deltecho/DEEP_TREE_ECHO_AUTONOMY.md`**: Detailed documentation on the autonomous agent architecture.
-- **`/home/ubuntu/deltecho/LIVE2D_AVATAR_INTEGRATION.md`**: Detailed documentation on the Live2D avatar integration.
-- **`/home/ubuntu/deltecho/PERFORMANCE_OPTIMIZATION.md`**: Guidance on optimizing performance, especially for TensorFlow.js.
-- **`/home/ubuntu/deltecho/E2E_TEST_FIXES.md`**: Analysis and fixes for common end-to-end test failures.
+| File | Purpose |
+| :--- | :--- |
+| `packages/frontend/bin/build-frontend-ts.mjs` | esbuild config with `cubismPatchPlugin` |
+| `packages/avatar/src/adapters/pixi-live2d-renderer.ts` | PixiJS Live2D renderer with safe logging |
+| `packages/avatar/src/adapters/live2d-avatar.ts` | Manager wrapping the renderer |
+| `packages/frontend/src/components/AICompanionHub/Live2DAvatar.tsx` | React component with fallback |
+| `packages/frontend/src/components/screens/DeepTreeEchoHub/DeepTreeEchoHub.tsx` | Main hub with cognitive loop |
+| `packages/target-browser/cloudflare/worker.ts` | CF Worker proxy with LLM/DreamGen endpoints |
+| `packages/frontend/static/main.html` | CSP configuration |
+| `.github/workflows/deploy-cloudflare.yml` | CI/CD deploy pipeline |
