@@ -18,7 +18,7 @@ description: >
 Deep Tree Echo's avatar: Miara body mesh + cyberpunk-bioluminescent aesthetic + FACS-mapped endocrine expressions.
 
 ```
-live2d-dtecho = live2d-miara(body_mesh) ⊗ mesh-painter(aesthetic_mapping)
+live2d-dtecho = live2d-miara(body_mesh)
   ⊗ facs(AU_decomposition)
   ⊗ rig-logic(CTRL_curves)
   ⊗ unreal-blueprint(expression_pipeline)
@@ -173,7 +173,6 @@ function dtechoExpressionTick(dte: DTEInstance): void {
 ```
 live2d-dtecho
 ├── live2d-miara ⊗ (body mesh, Cubism parameters)
-├── mesh-painter ⊗ (aesthetic mapping, texture replacement, parameter extensions)
 ├── facs ⊗ (AU decomposition, emotion→AU mapping)
 ├── rig-logic ⊗ (CTRL_ curves, corrective expressions, LOD)
 ├── unreal-blueprint ⊗ (BP_ExpressionBridge, ABP_MetaHuman_DTE)
